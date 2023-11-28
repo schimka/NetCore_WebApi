@@ -1,0 +1,425 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Список пользователей</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.0/css/bootstrap.min.css" rel="stylesheet" />
+</head>
+<body>    
+    <div id="userInfo" style="display:none;">
+        <p>Вы вошли как: <span id="userNameInfo"></span></p>
+        <input type="button" value="Выйти" id="logOut" />
+    </div>
+    <div id="loginForm">
+        <h3>Вход на сайт</h3>
+        <label>Введите логин</label><br />
+        <input type="text" id="loginLogin" /> <br /><br />
+        <label>Введите пароль</label><br />
+        <input type="password" id="passwordLogin" /><br /><br />
+        <input type="submit" id="submitLogin" value="Логин" />
+    </div>
+
+    <h2>Список пользователей</h2>
+    <form name="userForm">
+        <input type="hidden" name="guid" value="0" />
+        <div class="form-group col-md-5">
+            <label for="login">Логин:</label>
+            <input class="form-control" name="login" />
+        </div>
+        <div class="form-group col-md-5">
+            <label for="password">Пароль:</label>
+            <input class="form-control" name="password" />
+        </div>
+        <div class="form-group col-md-5">
+            <label for="name">Имя:</label>
+            <input class="form-control" name="name" />
+        </div>
+        <div class="form-group col-md-5">
+            <label for="gender">Пол:</label>
+            <input class="form-control" name="gender" type="number" />
+        </div>
+        <div class="form-group col-md-5">
+            <label for="birthday">Дата рождения:</label>
+            <input class="form-control" name="birthday" />
+        </div>
+        <div class="form-group col-md-5">
+            <label for="admin">Админ:</label>
+            <input class="form-control" name="admin" />
+        </div>
+        <div class="panel-body">
+            <button type="submit" id="submit" class="btn btn-primary">Сохранить</button>
+            <a id="getuser" onclick="GetUsers()" class="btn btn-primary">Получить всех активных</a>
+            <a id="getalluser" onclick="GetAllUsers()" class="btn btn-primary">Получить всех </a>
+            <a id="getbyage" onclick="GetByAge()" class="btn btn-primary">Получить всех старше 20</a>
+            <a id="reset" onclick="reset()" class="btn btn-primary">Сбросить</a>
+        </div>
+    </form>
+    <table class="table table-condensed table-striped  col-md-6">
+        <thead><tr><th>Guid</th><th>Логин</th><th>Имя</th>><th>Пол</th><th>Дата рождения</th><th>Админ</th><th>CreatedOn</th><th>CreatedBy</th><th>ModifiedOn</th><th>ModifiedBy</th><th>RevokedOn</th><th>RevokedBy</th><th></th></tr></thead>
+        <tbody>
+        </tbody>
+    </table>
+    <script>
+
+        var tokenKey = "accessToken";
+        // отпавка запроса  для получения токена
+        async function getTokenAsync() {
+
+            // получаем данные формы и фомируем объект для отправки
+            const formData = new FormData();
+            formData.append("grant_type", "password");
+            formData.append("login", document.getElementById("loginLogin").value);
+            formData.append("password", document.getElementById("passwordLogin").value);
+
+            // отправляет запрос и получаем ответ
+            const response = await fetch("/token", {
+                method: "POST",
+                headers: { "Accept": "application/json" },
+                body: formData
+            });
+            // получаем данные
+            const data = await response.json();
+
+            // если запрос прошел нормально
+            if (response.ok === true) {
+                sessionStorage.setItem("login", document.getElementById("loginLogin").value);
+                sessionStorage.setItem("password", document.getElementById("passwordLogin").value);
+                // изменяем содержимое и видимость блоков на странице
+                document.getElementById("userNameInfo").innerText = data.username;
+                document.getElementById("userInfo").style.display = "block";
+                document.getElementById("loginForm").style.display = "none";
+                // сохраняем в хранилище sessionStorage токен доступа
+                sessionStorage.setItem(tokenKey, data.access_token);
+                console.log(data.access_token);
+            }
+            else {
+                // если произошла ошибка, из errorText получаем текст ошибки
+                console.log("Error: ", response.status, data.errorText);
+            }
+        };
+        // получаем токен
+        document.getElementById("submitLogin").addEventListener("click", e => {           
+            e.preventDefault();
+            getTokenAsync();
+        });
+        // условный выход -  удаляем токен и меняем видимость блоков
+        document.getElementById("logOut").addEventListener("click", e => {
+
+            e.preventDefault();
+            document.getElementById("userNameInfo").innerText = "";
+            document.getElementById("userInfo").style.display = "none";
+            document.getElementById("loginForm").style.display = "block";
+            sessionStorage.removeItem(tokenKey);
+            sessionStorage.removeItem("login");
+            sessionStorage.removeItem("password");
+            let rows = document.querySelector("tbody");
+            rows.innerHTML = "";
+        });
+
+               
+
+        // Получение всех активных пользователей
+        async function GetUsers() {
+            GetUsersList("/api/users");            
+        }
+        // Получение всех пользователей
+        async function GetAllUsers() {
+            GetUsersList("/api/users/get-with-revoked/");            
+        }
+        //получить всех старше 20
+        async function GetByAge() {
+            GetUsersList("/api/users/get-by-age/20");            
+        }
+        //получить список
+        async function GetUsersList(path)
+        {
+            let rows = document.querySelector("tbody");
+            rows.innerHTML = "";
+            // отправляет запрос и получаем ответ
+            //const token = sessionStorage.getItem(tokenKey)
+            const _login = sessionStorage.getItem("login");
+            const _password = sessionStorage.getItem("password");
+            const response = await fetch(path, {
+                method: "GET",
+                headers: {
+                    "Accept": "application/json",
+                    "Authorization": _login + " " + _password
+                }
+            });
+            // если запрос прошел нормально
+            if (response.ok === true) {
+                // получаем данные
+                const users = await response.json();
+                let rows = document.querySelector("tbody");
+                users.forEach(user => {
+                    // добавляем полученные элементы в таблицу
+                    rows.append(row(user));
+                });
+            }
+            else {
+                const errorData = await response.json();
+                console.log("errors", errorData);
+            }
+        }
+
+        // Получение одного пользователя(наполнение формы)
+        async function GetUser(login) {
+            
+            const _login = sessionStorage.getItem("login")
+            const _password = sessionStorage.getItem("password")
+            const response = await fetch("/api/users/" + login, {
+                method: "GET",
+                headers: {
+                    "Accept": "application/json",
+                    "Authorization": _login + " " + _password
+                }
+            });
+            if (response.ok === true) {
+                const user = await response.json();
+                const form = document.forms["userForm"];
+                form.elements["guid"].value = user.guid;
+                form.elements["login"].value = user.login;
+                form.elements["password"].value = user.password;
+                form.elements["name"].value = user.name;
+                form.elements["gender"].value = user.gender;
+                form.elements["birthday"].value = user.birthday;
+                form.elements["admin"].value = user.admin;
+            }
+            else {
+                const errorData = await response.json();
+                console.log("errors", errorData);
+            }
+        }
+        // Добавление пользователя
+        async function CreateUser(userLogin, userPassword, userName, userGender, userBirthday, userAdmin) {
+            
+            //const token = sessionStorage.getItem(tokenKey)
+            const _login = sessionStorage.getItem("login")
+            const _password = sessionStorage.getItem("password")
+            const response = await fetch("api/users", {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "Authorization": _login + " " + _password
+                },
+                body: JSON.stringify({
+                    login: userLogin,
+                    password: userPassword,
+                    name: userName,
+                    gender: userGender,
+                    birthday: userBirthday,
+                    admin: userAdmin
+                })
+            });
+            if (response.ok === true) {
+                const user = await response.json();
+                reset();
+                document.querySelector("tbody").append(row(user));
+            }
+            else
+            {
+                const errorData = await response.json();
+                console.log("errors", errorData);                
+            }
+        }       
+        // Изменение пользователя
+        async function EditUser(userGuid, userLogin, userPassword, userName, userGender, userBirthday, userAdmin, userRevoke) {
+            
+            const _login = sessionStorage.getItem("login")
+            const _password = sessionStorage.getItem("password")
+            const response = await fetch("api/users", {
+                method: "PUT",
+                headers: {
+                    "Accept": "application/json",
+                    "Authorization": _login + " " + _password,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    guid: userGuid,
+                    login: userLogin,
+                    password: userPassword,
+                    name: userName,
+                    gender: userGender,
+                    birthday: userBirthday,
+                    admin: userAdmin,
+                    revokedOn: userRevoke
+                })
+            });
+            if (response.ok === true) {
+                const user = await response.json();
+                reset();
+                document.querySelector("tr[data-rowid='" + user.guid + "']").replaceWith(row(user));
+            }
+            else {
+                const errorData = await response.json();
+                console.log("errors", errorData);
+            }
+        }
+        // Удаление пользователя
+        async function DeleteUser(login) {
+           
+            const _login = sessionStorage.getItem("login")
+            const _password = sessionStorage.getItem("password")
+            const response = await fetch("/api/users/" + login, {
+                method: "DELETE",
+                headers: {
+                    "Accept": "application/json",
+                    "Authorization": _login + " " + _password, }
+            });
+            if (response.ok === true) {
+                const user = await response.json();
+                document.querySelector("tr[data-rowid='" + user.guid + "']").remove();
+            }
+            else {
+                const errorData = await response.json();
+                console.log("errors", errorData);
+            }
+        }
+        //включение/отключение пользователя
+        async function RevokeUser(login) {
+            const _login = sessionStorage.getItem("login")
+            const _password = sessionStorage.getItem("password")
+            const response = await fetch("/api/users/" + login, {
+                method: "PUT",
+                headers: {
+                    "Accept": "application/json",
+                    "Authorization": _login + " " + _password,
+                }
+            });
+            if (response.ok === true) {
+                const user = await response.json();
+                reset();
+                document.querySelector("tr[data-rowid='" + user.guid + "']").replaceWith(row(user));
+            }
+            else {
+                const errorData = await response.json();
+                console.log("errors", errorData);
+            }
+        }
+
+        // сброс формы
+        function reset() {
+            
+            const form = document.forms["userForm"];
+            form.reset();
+            form.elements["guid"].value = 0;
+            form.elements["login"].value = "";
+            form.elements["password"].value = "";
+            form.elements["name"].value = "";
+            form.elements["gender"].value = "";
+            form.elements["birthday"].value = "";
+            form.elements["admin"].value = "";
+        }
+        // создание строки для таблицы
+        function row(user) {
+                      
+
+            const tr = document.createElement("tr");
+            tr.setAttribute("data-rowid", user.guid);
+
+            const guidTd = document.createElement("td");
+            guidTd.append(user.guid);
+            tr.append(guidTd);
+
+            const loginTd = document.createElement("td");
+            loginTd.append(user.login);
+            tr.append(loginTd);
+
+            const nameTd = document.createElement("td");
+            nameTd.append(user.name);
+            tr.append(nameTd);
+
+            const genderTd = document.createElement("td");
+            genderTd.append(user.gender);
+            tr.append(genderTd);
+            const birdayTd = document.createElement("td");
+            birdayTd.append(user.birthday);
+            tr.append(birdayTd);
+            const adminTd = document.createElement("td");
+            adminTd.append(user.admin);
+            tr.append(adminTd);
+
+            const CreatedOnTd = document.createElement("td");
+            CreatedOnTd.append(user.createdOn);
+            tr.append(CreatedOnTd);
+            const CreatedByTd = document.createElement("td");
+            CreatedByTd.append(user.createdBy);
+            tr.append(CreatedByTd);
+
+            const ModifiedOnTd = document.createElement("td");
+            ModifiedOnTd.append(user.modifiedOn);
+            tr.append(ModifiedOnTd);
+            const ModifiedByTd = document.createElement("td");
+            ModifiedByTd.append(user.modifiedBy);
+            tr.append(ModifiedByTd);
+
+            const RevokedOnTd = document.createElement("td");
+            RevokedOnTd.append(user.revokedOn);
+            tr.append(RevokedOnTd);
+            const RevokedByTd = document.createElement("td");
+            RevokedByTd.append(user.revokedBy);
+            tr.append(RevokedByTd);
+
+            const linksTd = document.createElement("td");
+
+            const editLink = document.createElement("a");
+            editLink.setAttribute("data-guid", user.guid);
+            editLink.setAttribute("style", "cursor:pointer;padding:15px;");
+            editLink.append("Изменить");
+            editLink.addEventListener("click", e => {
+
+                e.preventDefault();
+                GetUser(user.login);
+            });
+            linksTd.append(editLink);
+
+            const removeLink = document.createElement("a");
+            removeLink.setAttribute("data-id", user.guid);
+            removeLink.setAttribute("style", "cursor:pointer;padding:15px;");
+            removeLink.append("Удалить");
+            removeLink.addEventListener("click", e => {
+
+                e.preventDefault();
+                DeleteUser(user.login);
+            });
+
+            linksTd.append(removeLink);
+
+            const softremoveLink = document.createElement("a");
+            softremoveLink.setAttribute("data-id", user.guid);
+            softremoveLink.setAttribute("style", "cursor:pointer;padding:15px;");
+            softremoveLink.append("On/Off");
+            softremoveLink.addEventListener("click", e => {
+
+                e.preventDefault();
+                RevokeUser(user.login);
+            });
+
+            linksTd.append(softremoveLink);
+            tr.appendChild(linksTd);
+
+            return tr;
+        }
+        // отправка формы
+        document.forms["userForm"].addEventListener("submit", e => {
+            e.preventDefault();
+            const form = document.forms["userForm"];
+            const guid = form.elements["guid"].value;
+            const login = form.elements["login"].value;
+            const password = form.elements["password"].value;
+            const name = form.elements["name"].value;
+            const gender = form.elements["gender"].value;
+            const birthday = form.elements["birthday"].value;
+            const admin = form.elements["admin"].value;
+            if (guid == 0)
+                CreateUser(login, password, name, gender, birthday, admin);
+            else
+                EditUser(guid, login, password, name, gender, birthday, admin, revoke);
+        });
+        
+
+    </script>
+</body>
+</html>
